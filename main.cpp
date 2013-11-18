@@ -31,10 +31,12 @@ using namespace DirectX;
 using namespace std;
 
 #include "Point.h"
+#include "Spring.h"
 
 float timeStep = 1.0f/60;
 
 vector<Point> points;
+vector<Spring> springs;
 
 // DXUT camera
 // NOTE: CModelViewerCamera does not only manage the standard view transformation/camera position 
@@ -248,6 +250,20 @@ void DrawPoints(ID3D11DeviceContext* pd3dImmediateContext)
         // NOTE: The following generates one draw call per object, so performance will be bad for n>>1000 or so
         g_pSphere->Draw(g_pEffectPositionNormal, g_pInputLayoutPositionNormal);
     }
+}
+
+// geht nicht!!!!!!!!!!!!!!!!!!!!
+void DrawSprings()
+{
+	for (unsigned int i = 0; i < springs.size(); i++)
+	{
+		Vec3 p1Pos = points[springs[i].getPoint1()].getPosition();
+		Vec3 p2Pos = points[springs[i].getPoint2()].getPosition();
+		g_pPrimitiveBatchPositionColor->DrawLine(
+            VertexPositionColor(XMVectorSet(p1Pos.x, p1Pos.y, p1Pos.z, 1), Colors::Blue),
+            VertexPositionColor(XMVectorSet(p2Pos.x, p2Pos.y, p2Pos.z, 1), Colors::Blue)
+        );
+	}
 }
 
 
@@ -528,7 +544,11 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	while (timeAcc >= timeStep)
 	{
 		for (unsigned int i = 0; i < points.size(); i++)
-			points[0].step();
+			points[i].clearForce();
+		for (unsigned int i = 0; i < springs.size(); i++)
+			springs[i].addElasticForces();
+		for (unsigned int i = 0; i < points.size(); i++)
+			points[i].step();
 		timeAcc -= timeStep;
 	}
 
@@ -566,9 +586,17 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 //--------------------------------------------------------------------------------------
 int main(int argc, char* argv[])
 {
-	Point p(0, 0, 0);
-	p.setTimeStep(timeStep);
-	points.push_back(p);
+	Point p1(0, 0, 0);
+	p1.setTimeStep(timeStep);
+	points.push_back(p1);
+
+	Point p2(0, 0.5f, 0);
+	p2.setTimeStep(timeStep);
+	p2.setFixed();
+	points.push_back(p2);
+
+	Spring s(&points, 0, 1, 46.0f, 0.5f);
+	springs.push_back(s);
 
 #if defined(DEBUG) | defined(_DEBUG)
 	// Enable run-time memory check for debug builds.

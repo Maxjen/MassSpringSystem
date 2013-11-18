@@ -4,11 +4,10 @@ Point::Point()
 {
 	position.zero();
 	velocity.zero();
-	force = Vec3(0, -10, 0);
-	mass = 1.0f;
+	externalForce.zero();
+	setMass(1.0f);
 	damping = 0.99f;
-	steps = 0;
-	printf("hello\n");
+	isFixed = false;
 }
 
 Point::Point(float x, float y, float z)
@@ -17,12 +16,11 @@ Point::Point(float x, float y, float z)
 	position.y = y;
 	position.z = z;
 	velocity.zero();
-	force = Vec3(0, -10, 0);
-	mass = 1.0f;
+	externalForce.zero();
+	setMass(1.0f);
 	damping = 0.99f;
-	steps = 0;
+	isFixed = false;
 }
-
 
 Point::~Point(void)
 {
@@ -30,39 +28,48 @@ Point::~Point(void)
 
 void Point::clearForce()
 {
-	force.zero();
+	externalForce.zero();
+}
+
+void Point::addForce(float x, float y, float z)
+{
+	//printf("hallo, %f, %f, %f\n", x, y, z);
+	externalForce += Vec3(x, y, z);
+	//printf("%f, %f, %f\n", externalForce.x, externalForce.y, externalForce.z);
 }
 
 void Point::integrateVelocity()
 {
-	/*XMVECTOR forceV = XMLoadFloat3(&force);
-	XMVECTOR velocityV = XMLoadFloat3(&velocity);
-	XMVectorScale(forceV, 1.0f/mass);
-	XMVectorAdd(velocityV, forceV);
-	force = X*/
-
-	Vec3 deltaVelocity = 1.0f / mass * (force - (damping * velocity)) * timeStep;
-	velocity += deltaVelocity;
+	if (!isFixed)
+	{
+		Vec3 deltaVelocity = 1.0f / mass * (gravityForce + externalForce - (damping * velocity)) * timeStep;
+		velocity += deltaVelocity;
+	}
 }
 
 void Point::integratePosition()
 {
-	position += velocity * timeStep;
+	if (!isFixed)
+	{
+		position += velocity * timeStep;
 
-	if (position.y < -0.5f)
-		position.y = -0.5f;
+		if (position.y < -0.5f)
+			position.y = -0.5f;
+	}
 }
 
 void Point::step()
 {
-	steps++;
+	//printf("%f, %f, %f\n", externalForce.x, externalForce.y, externalForce.z);
 	if (position.y <= -0.5f && velocity.y < 0)
 		velocity.y *= -1;
 	integrateVelocity();
 	integratePosition();
-	printf("%d %f %f\n", steps, velocity.y, position.y);
-	printf("%f, %f\n", timeStep, mass);
-	printf("%f, %f, %f\n", force.x, force.y, force.z);
+}
+
+void Point::setFixed()
+{
+	isFixed = true;
 }
 
 void Point::setPosition(float x, float y, float z)
@@ -82,9 +89,8 @@ Vec3 Point::getPosition()
 	return position;
 }
 
-
-void Point::draw()
+void Point::setMass(float mass)
 {
-
+	this->mass = mass;
+	gravityForce = Vec3(0, -10, 0) * mass;
 }
-

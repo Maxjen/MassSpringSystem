@@ -10,30 +10,29 @@ using namespace DirectX;
 class Point
 {
 private:
-	/*XMFLOAT3 position;
-	XMFLOAT3 velocity;
-	XMFLOAT3 force;*/
 	Vec3 position;
 	Vec3 velocity;
-	Vec3 force;
+	Vec3 gravityForce;
+	Vec3 externalForce;
 	float mass;
 	float damping;
 	float timeStep;
-	int steps;
+	bool isFixed;
 public:
 	Point();
 	Point(float x, float y, float z);
 	~Point(void);
 
 	void clearForce();
+	void addForce(float x, float y, float z);
 	void integrateVelocity();
 	void integratePosition();
 	void step();
 
+	void setFixed();
 	void setPosition(float x, float y, float z);
 	Vec3 getPosition();
 	void setTimeStep(float timeStep);
-
-	void draw();
+	void setMass(float mass);
 };
 

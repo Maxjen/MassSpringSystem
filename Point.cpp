@@ -8,6 +8,7 @@ Point::Point()
 	mass = 1.0f;
 	damping = 0.99f;
 	steps = 0;
+	printf("world\n");
 }
 
 Point::Point(float x, float y, float z)

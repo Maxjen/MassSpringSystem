@@ -253,8 +253,17 @@ void DrawPoints(ID3D11DeviceContext* pd3dImmediateContext)
 }
 
 // geht nicht!!!!!!!!!!!!!!!!!!!!
-void DrawSprings()
+void DrawSprings(ID3D11DeviceContext* pd3dImmediateContext)
 {
+	// Setup position/color effect
+    g_pEffectPositionColor->SetWorld(g_camera.GetWorldMatrix());
+    
+    g_pEffectPositionColor->Apply(pd3dImmediateContext);
+    pd3dImmediateContext->IASetInputLayout(g_pInputLayoutPositionColor);
+
+    // Draw
+    g_pPrimitiveBatchPositionColor->Begin();
+
 	for (unsigned int i = 0; i < springs.size(); i++)
 	{
 		Vec3 p1Pos = points[springs[i].getPoint1()].getPosition();
@@ -264,6 +273,8 @@ void DrawSprings()
             VertexPositionColor(XMVectorSet(p2Pos.x, p2Pos.y, p2Pos.z, 1), Colors::Blue)
         );
 	}
+
+	g_pPrimitiveBatchPositionColor->End();
 }
 
 
@@ -567,6 +578,8 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
     DrawBoundingBox(pd3dImmediateContext);
 
 	DrawPoints(pd3dImmediateContext);
+
+	DrawSprings(pd3dImmediateContext);
 
     // Draw speheres
     if (g_bDrawSpheres) DrawSomeRandomObjects(pd3dImmediateContext);

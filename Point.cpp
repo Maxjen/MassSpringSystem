@@ -2,10 +2,13 @@
 
 Point::Point()
 {
-	force = Vec3(0, -1, 0);
+	position.zero();
+	velocity.zero();
+	force = Vec3(0, -10, 0);
 	mass = 1.0f;
 	damping = 0.99f;
 	steps = 0;
+	printf("hello\n");
 }
 
 Point::Point(float x, float y, float z)
@@ -13,7 +16,8 @@ Point::Point(float x, float y, float z)
 	position.x = x;
 	position.y = y;
 	position.z = z;
-	force = Vec3(0, -1, 0);
+	velocity.zero();
+	force = Vec3(0, -10, 0);
 	mass = 1.0f;
 	damping = 0.99f;
 	steps = 0;
@@ -45,14 +49,14 @@ void Point::integratePosition()
 {
 	position += velocity * timeStep;
 
-	/*if (position.y < -0.5f)
-		position.y = 0;*/
+	if (position.y < -0.5f)
+		position.y = -0.5f;
 }
 
 void Point::step()
 {
 	steps++;
-	if (position.y < -0.5f && velocity.y < 0)
+	if (position.y <= -0.5f && velocity.y < 0)
 		velocity.y *= -1;
 	integrateVelocity();
 	integratePosition();

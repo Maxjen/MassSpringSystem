@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <random>
 #include <iostream>
+#include <cmath>
 
 //DirectX includes
 #include <DirectXMath.h>
@@ -37,6 +38,18 @@ float timeStep = 1.0f/60;
 
 vector<Point> points;
 vector<Spring> springs;
+
+struct Line
+{
+	float x1, y1, z1;
+	float x2, y2, z2;
+};
+
+vector<Line> lines;
+
+int screenWidth;
+int screenHeight;
+float tanFOV;
 
 // DXUT camera
 // NOTE: CModelViewerCamera does not only manage the standard view transformation/camera position 
@@ -252,7 +265,6 @@ void DrawPoints(ID3D11DeviceContext* pd3dImmediateContext)
     }
 }
 
-// geht nicht!!!!!!!!!!!!!!!!!!!!
 void DrawSprings(ID3D11DeviceContext* pd3dImmediateContext)
 {
 	// Setup position/color effect
@@ -276,6 +288,29 @@ void DrawSprings(ID3D11DeviceContext* pd3dImmediateContext)
 
 	g_pPrimitiveBatchPositionColor->End();
 }
+
+void DrawLines(ID3D11DeviceContext* pd3dImmediateContext)
+{
+	// Setup position/color effect
+    g_pEffectPositionColor->SetWorld(g_camera.GetWorldMatrix());
+    
+    g_pEffectPositionColor->Apply(pd3dImmediateContext);
+    pd3dImmediateContext->IASetInputLayout(g_pInputLayoutPositionColor);
+
+    // Draw
+    g_pPrimitiveBatchPositionColor->Begin();
+
+	for (unsigned int i = 0; i < lines.size(); i++)
+	{
+		g_pPrimitiveBatchPositionColor->DrawLine(
+            VertexPositionColor(XMVectorSet(lines[i].x1, lines[i].y1, lines[i].z1, 1), Colors::Blue),
+            VertexPositionColor(XMVectorSet(lines[i].x2, lines[i].y2, lines[i].z2, 1), Colors::Blue)
+        );
+	}
+
+	g_pPrimitiveBatchPositionColor->End();
+}
+
 
 
 // ============================================================
@@ -404,6 +439,8 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
     // Update camera parameters
 	int width = pBackBufferSurfaceDesc->Width;
 	int height = pBackBufferSurfaceDesc->Height;
+	screenWidth = width;
+	screenHeight = height;
 	g_camera.SetWindow(width, height);
 	g_camera.SetProjParams(XM_PI / 4.0f, float(width) / float(height), 0.1f, 100.0f);
 
@@ -473,8 +510,37 @@ void CALLBACK OnMouse( bool bLeftButtonDown, bool bRightButtonDown, bool bMiddle
             // Accumulate deltas in g_viMouseDelta
             g_viMouseDelta.x += xPos - xPosSave;
             g_viMouseDelta.y += yPos - yPosSave;
-        }    
+        }
 
+		if (bRightButtonDown)
+		{
+			printf("%d, %d\n", xPos, yPos);
+			float dx = tanFOV * (2 * ((float)xPos)/screenWidth - 1.0f)/(((float)screenWidth)/screenHeight);
+			float dy = tanFOV * (1.0f - 2 * ((float)yPos)/screenHeight);
+			float nearPlane = 0.1f;
+			float farPlane = 100.0f;
+			XMFLOAT3 p1(dx * nearPlane, dy * nearPlane, nearPlane);
+			XMFLOAT3 p2(dx * farPlane, dy * farPlane, farPlane);
+			XMVECTOR pp1 = XMLoadFloat3(&p1);
+			XMVECTOR pp2 = XMLoadFloat3(&p2);
+			XMMATRIX viewInv = XMMatrixInverse(nullptr, g_camera.GetViewMatrix());
+			pp1 = XMVector3Transform(pp1, viewInv);
+			pp2 = XMVector3Transform(pp2, viewInv);
+			printf("%f, %f\n", dx, dy);
+
+			Line l;
+
+			l.x1 = XMVectorGetX(pp1);
+			l.y1 = XMVectorGetY(pp1);
+			l.z1 = XMVectorGetZ(pp1);
+
+			l.x2 = XMVectorGetX(pp2);
+			l.y2 = XMVectorGetY(pp2);
+			l.z2 = XMVectorGetZ(pp2);
+
+			lines.push_back(l);
+		}
+		
         xPosSave = xPos;
         yPosSave = yPos;
     }
@@ -581,6 +647,8 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 
 	DrawSprings(pd3dImmediateContext);
 
+	DrawLines(pd3dImmediateContext);
+
     // Draw speheres
     if (g_bDrawSpheres) DrawSomeRandomObjects(pd3dImmediateContext);
 
@@ -599,11 +667,14 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 //--------------------------------------------------------------------------------------
 int main(int argc, char* argv[])
 {
+	tanFOV = tanf(XM_PI / 4.0f);
+	printf("Tan: %f\n", tanFOV);
+
 	Point p1(0, 0, 0);
 	p1.setTimeStep(timeStep);
 	points.push_back(p1);
 
-	Point p2(0, 0.5f, 0);
+	Point p2(-0.1f, 0.5f, 0.2f);
 	p2.setTimeStep(timeStep);
 	p2.setFixed();
 	points.push_back(p2);
@@ -649,6 +720,8 @@ int main(int argc, char* argv[])
 	DXUTSetCursorSettings( true, true ); // Show the cursor and clip it when in full screen
 	DXUTCreateWindow( L"PhysicsDemo" );
 	DXUTCreateDevice( D3D_FEATURE_LEVEL_10_0, true, 1280, 960 );
+	screenWidth = 1280;
+	screenHeight = 960;
     
 	DXUTMainLoop(); // Enter into the DXUT render loop
 

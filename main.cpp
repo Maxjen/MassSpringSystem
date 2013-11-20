@@ -508,14 +508,14 @@ void CALLBACK OnMouse( bool bLeftButtonDown, bool bRightButtonDown, bool bMiddle
         if (bLeftButtonDown)
         {
             // Accumulate deltas in g_viMouseDelta
-            g_viMouseDelta.x += xPos - xPosSave;
+           /* g_viMouseDelta.x += xPos - xPosSave;
             g_viMouseDelta.y += yPos - yPosSave;
         }
 
 		if (bRightButtonDown)
-		{
+		{*/
 			printf("%d, %d\n", xPos, yPos);
-			float dx = tanFOV * (2 * ((float)xPos)/screenWidth - 1.0f)/(((float)screenWidth)/screenHeight);
+			float dx = tanFOV * (2 * ((float)xPos)/screenWidth - 1.0f)*(((float)screenWidth)/screenHeight);
 			float dy = tanFOV * (1.0f - 2 * ((float)yPos)/screenHeight);
 			float nearPlane = 0.1f;
 			float farPlane = 100.0f;
@@ -539,10 +539,84 @@ void CALLBACK OnMouse( bool bLeftButtonDown, bool bRightButtonDown, bool bMiddle
 			l.z2 = XMVectorGetZ(pp2);
 
 			lines.push_back(l);
+
+			int currentMinSphere = -1;
+			float currentMinDistance = 100.0f;
+
+			for (unsigned int i = 0 ; i < points.size(); i++)
+			{
+				Vec3 position = points[i].getPosition();
+				
+				XMMATRIX trans    = XMMatrixTranslation(position.x, position.y, position.z);
+				XMMATRIX objectMatrix = trans * g_camera.GetWorldMatrix();
+				objectMatrix = XMMatrixInverse(nullptr, objectMatrix);
+				XMVECTOR ppp1 = XMVector3Transform(pp1, objectMatrix);
+				XMVECTOR ppp2 = XMVector3Transform(pp2, objectMatrix);
+				Vec3 p1V;
+				p1V.x = XMVectorGetX(ppp1);
+				p1V.y = XMVectorGetY(ppp1);
+				p1V.z = XMVectorGetZ(ppp1);
+				Vec3 p2V;
+				p2V.x = XMVectorGetX(ppp2);
+				p2V.y = XMVectorGetY(ppp2);
+				p2V.z = XMVectorGetZ(ppp2);
+
+				Vec3 d = p2V - p1V;
+				d.normalize();
+
+				float a = d * d;
+				float b = 2 * d * p1V;
+				float c = p1V * p1V - 0.05f * 0.05f;
+
+				float disc = b * b - 4 * a * c;
+				printf("disc: %f\n", disc);
+				if (disc >= 0)
+				{
+					float discSqrt = sqrtf(disc);
+					float q;
+					if (b < 0)
+						q = (-b - discSqrt) / 2.0f;
+					else
+						q = (-b + discSqrt) / 2.0f;
+
+					float t0 = q / a;
+					float t1 = c / q;
+
+					if (t0 > t1)
+					{
+						float tmp = t0;
+						t0 = t1;
+						t1 = tmp;
+					}
+
+					printf("%d: t0: %d, t1: %d\n", i, t0, t1);
+
+					if (t1 > 0 && t0 < 0)
+					{
+						if (t1 < currentMinDistance)
+						{
+							currentMinDistance = t1;
+							currentMinSphere = i;
+						}
+					}
+					if (t1 > 0 && t0 > 0)
+					{
+						if (t0 < currentMinDistance)
+						{
+							currentMinDistance = t0;
+							currentMinSphere = i;
+						}
+					}
+				}
+			}
+
+
+			if (currentMinSphere != -1)
+				printf("Sphere: %d\n", currentMinSphere);
 		}
 		
-        xPosSave = xPos;
-        yPosSave = yPos;
+        /*xPosSave = xPos;
+        yPosSave = yPos;*/
     }
 }
 
@@ -667,7 +741,11 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 //--------------------------------------------------------------------------------------
 int main(int argc, char* argv[])
 {
-	tanFOV = tanf(XM_PI / 4.0f);
+	screenWidth = 1280;
+	screenHeight = 960;
+
+	//tanFOV = tanf(XM_PI / 4.0f);
+	tanFOV = tanf(XM_PI / 8.0f);
 	printf("Tan: %f\n", tanFOV);
 
 	Point p1(0, 0, 0);
@@ -678,6 +756,10 @@ int main(int argc, char* argv[])
 	p2.setTimeStep(timeStep);
 	p2.setFixed();
 	points.push_back(p2);
+
+	Point p3(0.3f, 0.0f, 0.0f);
+	p3.setTimeStep(timeStep);
+	points.push_back(p3);
 
 	Spring s(&points, 0, 1, 46.0f, 0.5f);
 	springs.push_back(s);
@@ -708,21 +790,22 @@ int main(int argc, char* argv[])
 	DXUTSetCallbackD3D11SwapChainReleasing( OnD3D11ReleasingSwapChain );
 	DXUTSetCallbackD3D11DeviceDestroyed( OnD3D11DestroyDevice );
 
+	
+
     // Init camera
  	XMFLOAT3 eye(0.0f, 0.0f, -2.0f);
 	XMFLOAT3 lookAt(0.0f, 0.0f, 0.0f);
 	g_camera.SetViewParams(XMLoadFloat3(&eye), XMLoadFloat3(&lookAt));
     g_camera.SetButtonMasks(MOUSE_MIDDLE_BUTTON, MOUSE_WHEEL, MOUSE_RIGHT_BUTTON);
 
+	
+
     // Init DXUT and create device
 	DXUTInit( true, true, NULL ); // Parse the command line, show msgboxes on error, no extra command line params
 	//DXUTSetIsInGammaCorrectMode( false ); // true by default (SRGB backbuffer), disable to force a RGB backbuffer
 	DXUTSetCursorSettings( true, true ); // Show the cursor and clip it when in full screen
 	DXUTCreateWindow( L"PhysicsDemo" );
-	DXUTCreateDevice( D3D_FEATURE_LEVEL_10_0, true, 1280, 960 );
-	screenWidth = 1280;
-	screenHeight = 960;
-    
+	DXUTCreateDevice( D3D_FEATURE_LEVEL_10_0, true, screenWidth, screenHeight );
 	DXUTMainLoop(); // Enter into the DXUT render loop
 
 	DXUTShutdown(); // Shuts down DXUT (includes calls to OnD3D11ReleasingSwapChain() and OnD3D11DestroyDevice())

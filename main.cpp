@@ -34,7 +34,13 @@ using namespace std;
 #include "Point.h"
 #include "Spring.h"
 
+bool isSimulating = false;
+bool isStatic = false;
+
 float timeStep = 1.0f/60;
+
+int selectedPoint = -1;
+float selectedPointDepth;
 
 vector<Point> points;
 vector<Spring> springs;
@@ -45,7 +51,7 @@ struct Line
 	float x2, y2, z2;
 };
 
-vector<Line> lines;
+//vector<Line> lines;
 
 int screenWidth;
 int screenHeight;
@@ -103,6 +109,8 @@ void InitTweakBar(ID3D11Device* pd3dDevice)
     // HINT: For buttons you can directly pass the callback function as a lambda expression.
     TwAddButton(g_pTweakBar, "Reset Camera", [](void *){g_camera.Reset();}, nullptr, "");
 
+	TwAddVarRW(g_pTweakBar, "Simulate Scene",   TW_TYPE_BOOLCPP, &isSimulating, "");
+	TwAddVarRW(g_pTweakBar, "static",	  TW_TYPE_BOOLCPP, &isStatic, "");
     TwAddVarRW(g_pTweakBar, "Draw Teapot",   TW_TYPE_BOOLCPP, &g_bDrawTeapot, "");
     TwAddVarRW(g_pTweakBar, "Draw Triangle", TW_TYPE_BOOLCPP, &g_bDrawTriangle, "");
     TwAddVarRW(g_pTweakBar, "Draw Spheres",  TW_TYPE_BOOLCPP, &g_bDrawSpheres, "");
@@ -254,6 +262,12 @@ void DrawPoints(ID3D11DeviceContext* pd3dImmediateContext)
     {
         // Setup position/normal effect (per object variables)
         g_pEffectPositionNormal->SetDiffuseColor(0.6f * XMColorHSVToRGB(XMVectorSet(randCol(eng), 1, 1, 0)));
+		if (selectedPoint == i)
+		{
+			XMFLOAT4 white;
+			white.x = white.y = white.z = white.w = 1.0f;
+			g_pEffectPositionNormal->SetDiffuseColor(XMLoadFloat4(&white));
+		}
         XMMATRIX scale    = XMMatrixScaling(g_fSphereSize, g_fSphereSize, g_fSphereSize);
 		Vec3 position = points[i].getPosition();
         XMMATRIX trans    = XMMatrixTranslation(position.x, position.y, position.z);
@@ -289,7 +303,7 @@ void DrawSprings(ID3D11DeviceContext* pd3dImmediateContext)
 	g_pPrimitiveBatchPositionColor->End();
 }
 
-void DrawLines(ID3D11DeviceContext* pd3dImmediateContext)
+/*void DrawLines(ID3D11DeviceContext* pd3dImmediateContext)
 {
 	// Setup position/color effect
     g_pEffectPositionColor->SetWorld(g_camera.GetWorldMatrix());
@@ -309,7 +323,7 @@ void DrawLines(ID3D11DeviceContext* pd3dImmediateContext)
 	}
 
 	g_pPrimitiveBatchPositionColor->End();
-}
+}*/
 
 
 
@@ -504,9 +518,11 @@ void CALLBACK OnMouse( bool bLeftButtonDown, bool bRightButtonDown, bool bMiddle
     // Track mouse movement if left mouse key is pressed
     {
         static int xPosSave = 0, yPosSave = 0;
+		static bool leftMousePressed = false;
 
-        if (bLeftButtonDown)
+        if (bLeftButtonDown && !leftMousePressed)
         {
+			leftMousePressed = true;
             // Accumulate deltas in g_viMouseDelta
            /* g_viMouseDelta.x += xPos - xPosSave;
             g_viMouseDelta.y += yPos - yPosSave;
@@ -514,31 +530,31 @@ void CALLBACK OnMouse( bool bLeftButtonDown, bool bRightButtonDown, bool bMiddle
 
 		if (bRightButtonDown)
 		{*/
-			printf("%d, %d\n", xPos, yPos);
+			printf("qStart: %d, %d\n", xPos, yPos);
 			float dx = tanFOV * (2 * ((float)xPos)/screenWidth - 1.0f)*(((float)screenWidth)/screenHeight);
 			float dy = tanFOV * (1.0f - 2 * ((float)yPos)/screenHeight);
 			float nearPlane = 0.1f;
 			float farPlane = 100.0f;
-			XMFLOAT3 p1(dx * nearPlane, dy * nearPlane, nearPlane);
-			XMFLOAT3 p2(dx * farPlane, dy * farPlane, farPlane);
-			XMVECTOR pp1 = XMLoadFloat3(&p1);
-			XMVECTOR pp2 = XMLoadFloat3(&p2);
+			XMFLOAT3 p1Float(dx * nearPlane, dy * nearPlane, nearPlane);
+			XMFLOAT3 p2Float(dx * farPlane, dy * farPlane, farPlane);
+			XMVECTOR p1Vector = XMLoadFloat3(&p1Float);
+			XMVECTOR p2Vector = XMLoadFloat3(&p2Float);
 			XMMATRIX viewInv = XMMatrixInverse(nullptr, g_camera.GetViewMatrix());
-			pp1 = XMVector3Transform(pp1, viewInv);
-			pp2 = XMVector3Transform(pp2, viewInv);
+			p1Vector = XMVector3Transform(p1Vector, viewInv);
+			p2Vector = XMVector3Transform(p2Vector, viewInv);
 			printf("%f, %f\n", dx, dy);
 
-			Line l;
+			/*Line l;
 
-			l.x1 = XMVectorGetX(pp1);
-			l.y1 = XMVectorGetY(pp1);
-			l.z1 = XMVectorGetZ(pp1);
+			l.x1 = XMVectorGetX(p1Vector);
+			l.y1 = XMVectorGetY(p1Vector);
+			l.z1 = XMVectorGetZ(p1Vector);
 
-			l.x2 = XMVectorGetX(pp2);
-			l.y2 = XMVectorGetY(pp2);
-			l.z2 = XMVectorGetZ(pp2);
+			l.x2 = XMVectorGetX(p2Vector);
+			l.y2 = XMVectorGetY(p2Vector);
+			l.z2 = XMVectorGetZ(p2Vector);
 
-			lines.push_back(l);
+			lines.push_back(l);*/
 
 			int currentMinSphere = -1;
 			float currentMinDistance = 100.0f;
@@ -550,23 +566,23 @@ void CALLBACK OnMouse( bool bLeftButtonDown, bool bRightButtonDown, bool bMiddle
 				XMMATRIX trans    = XMMatrixTranslation(position.x, position.y, position.z);
 				XMMATRIX objectMatrix = trans * g_camera.GetWorldMatrix();
 				objectMatrix = XMMatrixInverse(nullptr, objectMatrix);
-				XMVECTOR ppp1 = XMVector3Transform(pp1, objectMatrix);
-				XMVECTOR ppp2 = XMVector3Transform(pp2, objectMatrix);
-				Vec3 p1V;
-				p1V.x = XMVectorGetX(ppp1);
-				p1V.y = XMVectorGetY(ppp1);
-				p1V.z = XMVectorGetZ(ppp1);
-				Vec3 p2V;
-				p2V.x = XMVectorGetX(ppp2);
-				p2V.y = XMVectorGetY(ppp2);
-				p2V.z = XMVectorGetZ(ppp2);
+				XMVECTOR p1VectorObject = XMVector3Transform(p1Vector, objectMatrix);
+				XMVECTOR p2VectorObject = XMVector3Transform(p2Vector, objectMatrix);
+				Vec3 p1Vec3;
+				p1Vec3.x = XMVectorGetX(p1VectorObject);
+				p1Vec3.y = XMVectorGetY(p1VectorObject);
+				p1Vec3.z = XMVectorGetZ(p1VectorObject);
+				Vec3 p2Vec3;
+				p2Vec3.x = XMVectorGetX(p2VectorObject);
+				p2Vec3.y = XMVectorGetY(p2VectorObject);
+				p2Vec3.z = XMVectorGetZ(p2VectorObject);
 
-				Vec3 d = p2V - p1V;
+				Vec3 d = p2Vec3 - p1Vec3;
 				d.normalize();
 
 				float a = d * d;
-				float b = 2 * d * p1V;
-				float c = p1V * p1V - 0.05f * 0.05f;
+				float b = 2 * d * p1Vec3;
+				float c = p1Vec3 * p1Vec3 - 0.05f * 0.05f;
 
 				float disc = b * b - 4 * a * c;
 				printf("disc: %f\n", disc);
@@ -612,11 +628,74 @@ void CALLBACK OnMouse( bool bLeftButtonDown, bool bRightButtonDown, bool bMiddle
 
 
 			if (currentMinSphere != -1)
+			{
 				printf("Sphere: %d\n", currentMinSphere);
+				selectedPoint = currentMinSphere;
+				selectedPointDepth = currentMinDistance;
+				isStatic = points[selectedPoint].getIsFixed();
+			}
+			else
+			{
+				selectedPoint = -1;
+				isStatic = false;
+			}
+
+			
+			
 		}
+
+		if (bLeftButtonDown && leftMousePressed)
+		{
+			if (selectedPoint != -1)
+			{
+				float dx = tanFOV * (2 * (((float)screenWidth)/2 + 1)/screenWidth - 1.0f)*(((float)screenWidth)/screenHeight);
+				float dy = tanFOV * (2 * (((float)screenHeight)/2 + 1)/screenHeight - 1.0f);
+				//float depth;
+				printf("depth: %f\n", selectedPointDepth);
+				XMFLOAT3 relXFloat(dx * selectedPointDepth, 0, 0);
+				XMFLOAT3 relYFloat(0, dy * selectedPointDepth, 0);
+				XMVECTOR relXVector = XMLoadFloat3(&relXFloat);
+				XMVECTOR relYVector = XMLoadFloat3(&relYFloat);
+				XMMATRIX viewInv = XMMatrixInverse(nullptr, g_camera.GetViewMatrix());
+				relXVector = XMVector3TransformNormal(relXVector, viewInv);
+				relYVector = XMVector3TransformNormal(relYVector, viewInv);
+				Vec3 relXVec3(XMVectorGetX(relXVector), XMVectorGetY(relXVector), XMVectorGetZ(relXVector));
+				Vec3 relYVec3(XMVectorGetX(relYVector), XMVectorGetY(relYVector), XMVectorGetZ(relYVector));
+				/*relXVec3.normalize();
+				relYVec3.normalize();
+				relXVec3 /= 100;
+				relYVec3 /= 100;*/
+				Vec3 deltaPosition = (xPos - xPosSave) * relXVec3 + (yPos - yPosSave) * (-relYVec3);
+
+				/*XMFLOAT3 relXf, relYf;
+				relXf.x = 1.0f;
+				relXf.y = 0.0f;
+				relXf.z = 0.0f;
+				relYf.x = 0.0f;
+				relYf.y = 1.0f;
+				relYf.z = 0.0f;
+				XMVECTOR relX = XMLoadFloat3(&relXf);
+				XMVECTOR relY = XMLoadFloat3(&relYf);
+				relX = XMVector3TransformNormal(relX, viewInv);
+				relY = XMVector3TransformNormal(relY, viewInv);
+				Vec3 relXv(XMVectorGetX(relX), XMVectorGetY(relX), XMVectorGetZ(relX));
+				Vec3 relYv(XMVectorGetX(relY), XMVectorGetY(relY), XMVectorGetZ(relY));
+				relXv.normalize();
+				relYv.normalize();
+				relXv /= 100;
+				relYv /= 100;*/
+				/*Vec3 relXv(0.01f, 0, 0);
+				Vec3 relYv(0, 0.01f, 0);*/
+				//Vec3 deltaPosition = (xPos - xPosSave) * relXv + (yPos - yPosSave) * (-relYv);
+				points[selectedPoint].translate(deltaPosition.x, deltaPosition.y, deltaPosition.z);
+			}
+		}
+
+		if (!bLeftButtonDown)
+			leftMousePressed = false;
 		
-        /*xPosSave = xPos;
-        yPosSave = yPos;*/
+        xPosSave = xPos;
+        yPosSave = yPos;
     }
 }
 
@@ -691,16 +770,23 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
                                   double fTime, float fElapsedTime, void* pUserContext )
 {
 	static float timeAcc = 0;
-	timeAcc += fElapsedTime;
-	while (timeAcc >= timeStep)
+
+	if (selectedPoint != -1)
+		points[selectedPoint].setIsFixed(isStatic);
+
+	if (isSimulating)
 	{
-		for (unsigned int i = 0; i < points.size(); i++)
-			points[i].clearForce();
-		for (unsigned int i = 0; i < springs.size(); i++)
-			springs[i].addElasticForces();
-		for (unsigned int i = 0; i < points.size(); i++)
-			points[i].step();
-		timeAcc -= timeStep;
+		timeAcc += fElapsedTime;
+		while (timeAcc >= timeStep)
+		{
+			for (unsigned int i = 0; i < points.size(); i++)
+				points[i].clearForce();
+			for (unsigned int i = 0; i < springs.size(); i++)
+				springs[i].addElasticForces();
+			for (unsigned int i = 0; i < points.size(); i++)
+				points[i].step();
+			timeAcc -= timeStep;
+		}
 	}
 
 	// Clear render target and depth stencil
@@ -721,7 +807,7 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 
 	DrawSprings(pd3dImmediateContext);
 
-	DrawLines(pd3dImmediateContext);
+	//DrawLines(pd3dImmediateContext);
 
     // Draw speheres
     if (g_bDrawSpheres) DrawSomeRandomObjects(pd3dImmediateContext);
@@ -754,7 +840,7 @@ int main(int argc, char* argv[])
 
 	Point p2(-0.1f, 0.5f, 0.2f);
 	p2.setTimeStep(timeStep);
-	p2.setFixed();
+	p2.setIsFixed(true);
 	points.push_back(p2);
 
 	Point p3(0.3f, 0.0f, 0.0f);
@@ -763,6 +849,12 @@ int main(int argc, char* argv[])
 
 	Spring s(&points, 0, 1, 46.0f, 0.5f);
 	springs.push_back(s);
+
+	Spring s2(&points, 0, 2, 46.0f, 0.5f);
+	springs.push_back(s2);
+
+	Spring s3(&points, 1, 2, 46.0f, 0.5f);
+	springs.push_back(s3);
 
 #if defined(DEBUG) | defined(_DEBUG)
 	// Enable run-time memory check for debug builds.
@@ -805,7 +897,7 @@ int main(int argc, char* argv[])
 	//DXUTSetIsInGammaCorrectMode( false ); // true by default (SRGB backbuffer), disable to force a RGB backbuffer
 	DXUTSetCursorSettings( true, true ); // Show the cursor and clip it when in full screen
 	DXUTCreateWindow( L"PhysicsDemo" );
-	DXUTCreateDevice( D3D_FEATURE_LEVEL_10_0, true, screenWidth, screenHeight );
+	DXUTCreateDevice( D3D_FEATURE_LEVEL_10_0, true, 1280, 960 );
 	DXUTMainLoop(); // Enter into the DXUT render loop
 
 	DXUTShutdown(); // Shuts down DXUT (includes calls to OnD3D11ReleasingSwapChain() and OnD3D11DestroyDevice())

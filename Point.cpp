@@ -43,6 +43,7 @@ void Point::integrateVelocity()
 	if (!isFixed)
 	{
 		Vec3 deltaVelocity = 1.0f / mass * (gravityForce + externalForce - (damping * velocity)) * timeStep;
+		//Vec3 deltaVelocity = 1.0f / mass * (gravityForce) * timeStep;
 		velocity += deltaVelocity;
 	}
 }
@@ -67,9 +68,21 @@ void Point::step()
 	integratePosition();
 }
 
-void Point::setFixed()
+void Point::translate(float x, float y, float z)
 {
-	isFixed = true;
+	position.x += x;
+	position.y += y;
+	position.z += z;
+}
+
+void Point::setIsFixed(bool isFixed)
+{
+	this->isFixed = isFixed;
+}
+
+bool Point::getIsFixed()
+{
+	return isFixed;
 }
 
 void Point::setPosition(float x, float y, float z)

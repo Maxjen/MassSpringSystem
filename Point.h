@@ -29,7 +29,10 @@ public:
 	void integratePosition();
 	void step();
 
-	void setFixed();
+	void translate(float x, float y, float z);
+
+	void setIsFixed(bool isFixed);
+	bool getIsFixed();
 	void setPosition(float x, float y, float z);
 	Vec3 getPosition();
 	void setTimeStep(float timeStep);

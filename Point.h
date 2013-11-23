@@ -18,6 +18,8 @@ private:
 	float damping;
 	float timeStep;
 	bool isFixed;
+	Vec3 positionTmp;
+	Vec3 velocityTmp;
 public:
 	Point();
 	Point(float x, float y, float z);
@@ -27,7 +29,9 @@ public:
 	void addForce(float x, float y, float z);
 	void integrateVelocity();
 	void integratePosition();
-	void step();
+	void stepEuler();
+	void stepMidPoint1();
+	void stepMidPoint2();
 
 	void translate(float x, float y, float z);
 
@@ -35,7 +39,10 @@ public:
 	bool getIsFixed();
 	void setPosition(float x, float y, float z);
 	Vec3 getPosition();
+	Vec3 getPositionTmp();
+	Vec3 getVelocityTmp();
 	void setTimeStep(float timeStep);
 	void setMass(float mass);
+	float getMass();
 };
 

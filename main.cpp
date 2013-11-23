@@ -35,7 +35,14 @@ using namespace std;
 #include "Spring.h"
 
 bool isSimulating = false;
+
 bool isStatic = false;
+float mass = 1.0f;
+
+float stiffness = 46.0f;
+float initialLength = 0.5f;
+
+bool addSpringMode = false;
 
 float timeStep = 1.0f/60;
 
@@ -109,12 +116,15 @@ void InitTweakBar(ID3D11Device* pd3dDevice)
     // HINT: For buttons you can directly pass the callback function as a lambda expression.
     TwAddButton(g_pTweakBar, "Reset Camera", [](void *){g_camera.Reset();}, nullptr, "");
 
-	TwAddVarRW(g_pTweakBar, "Simulate Scene",   TW_TYPE_BOOLCPP, &isSimulating, "");
-	TwAddVarRW(g_pTweakBar, "static",	  TW_TYPE_BOOLCPP, &isStatic, "");
-    TwAddVarRW(g_pTweakBar, "Draw Teapot",   TW_TYPE_BOOLCPP, &g_bDrawTeapot, "");
+	TwAddVarRW(g_pTweakBar, "Simulate World",   TW_TYPE_BOOLCPP, &isSimulating, "");
+	TwAddVarRW(g_pTweakBar, "Static",	  TW_TYPE_BOOLCPP, &isStatic, "");
+	TwAddVarRW(g_pTweakBar, "Mass",	  TW_TYPE_FLOAT, &mass, "min=0.01");
+	TwAddVarRW(g_pTweakBar, "Stifness",	  TW_TYPE_FLOAT, &stiffness, "");
+	TwAddVarRW(g_pTweakBar, "Initial Length",	  TW_TYPE_FLOAT, &initialLength, "");
+    /*TwAddVarRW(g_pTweakBar, "Draw Teapot",   TW_TYPE_BOOLCPP, &g_bDrawTeapot, "");
     TwAddVarRW(g_pTweakBar, "Draw Triangle", TW_TYPE_BOOLCPP, &g_bDrawTriangle, "");
     TwAddVarRW(g_pTweakBar, "Draw Spheres",  TW_TYPE_BOOLCPP, &g_bDrawSpheres, "");
-    TwAddVarRW(g_pTweakBar, "Num Spheres",   TW_TYPE_INT32, &g_iNumSpheres, "min=1");
+    TwAddVarRW(g_pTweakBar, "Num Spheres",   TW_TYPE_INT32, &g_iNumSpheres, "min=1");*/
     TwAddVarRW(g_pTweakBar, "Sphere Size",   TW_TYPE_FLOAT, &g_fSphereSize, "min=0.01 step=0.01");
 }
 
@@ -629,15 +639,23 @@ void CALLBACK OnMouse( bool bLeftButtonDown, bool bRightButtonDown, bool bMiddle
 
 			if (currentMinSphere != -1)
 			{
+				if (addSpringMode && selectedPoint != currentMinSphere)
+				{
+					Spring s(&points, selectedPoint, currentMinSphere, stiffness, initialLength);
+					springs.push_back(s);
+					addSpringMode = false;
+				}
 				printf("Sphere: %d\n", currentMinSphere);
 				selectedPoint = currentMinSphere;
 				selectedPointDepth = currentMinDistance;
 				isStatic = points[selectedPoint].getIsFixed();
+				mass = points[selectedPoint].getMass();
 			}
 			else
 			{
 				selectedPoint = -1;
-				isStatic = false;
+				/*isStatic = false;
+				mass = 0.0f;*/
 			}
 
 			
@@ -706,6 +724,28 @@ void CALLBACK OnMouse( bool bLeftButtonDown, bool bRightButtonDown, bool bMiddle
 LRESULT CALLBACK MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
                           bool* pbNoFurtherProcessing, void* pUserContext )
 {
+	if (uMsg == WM_KEYDOWN)
+	{
+		switch (wParam)
+		{
+			case 0x57:
+			{
+				Point p(0, 0, 0);
+				p.setTimeStep(timeStep);
+				p.setMass(mass);
+				points.push_back(p);
+				break;
+			}
+			case 0x45:
+				if (selectedPoint != -1)
+				{
+					addSpringMode = true;
+				}
+				break;
+		}
+	}
+	
+
     // Send message to AntTweakbar first
     if (TwEventWin(hWnd, uMsg, wParam, lParam))
     {
@@ -772,20 +812,39 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	static float timeAcc = 0;
 
 	if (selectedPoint != -1)
+	{
 		points[selectedPoint].setIsFixed(isStatic);
+		points[selectedPoint].setMass(mass);
+	}
 
 	if (isSimulating)
 	{
 		timeAcc += fElapsedTime;
 		while (timeAcc >= timeStep)
 		{
+			/*for (unsigned int i = 0; i < points.size(); i++)
+				points[i].clearForce();
+			for (unsigned int i = 0; i < springs.size(); i++)
+				springs[i].addElasticForces();
+			for (unsigned int i = 0; i < points.size(); i++)
+				points[i].stepEuler();*/
+
 			for (unsigned int i = 0; i < points.size(); i++)
 				points[i].clearForce();
 			for (unsigned int i = 0; i < springs.size(); i++)
 				springs[i].addElasticForces();
 			for (unsigned int i = 0; i < points.size(); i++)
-				points[i].step();
+				points[i].stepMidPoint1();
+			for (unsigned int i = 0; i < points.size(); i++)
+				points[i].clearForce();
+			for (unsigned int i = 0; i < springs.size(); i++)
+				springs[i].addElasticForcesMidPoint();
+			for (unsigned int i = 0; i < points.size(); i++)
+				points[i].stepMidPoint2();
+
 			timeAcc -= timeStep;
+
+
 		}
 	}
 
@@ -889,6 +948,7 @@ int main(int argc, char* argv[])
 	XMFLOAT3 lookAt(0.0f, 0.0f, 0.0f);
 	g_camera.SetViewParams(XMLoadFloat3(&eye), XMLoadFloat3(&lookAt));
     g_camera.SetButtonMasks(MOUSE_MIDDLE_BUTTON, MOUSE_WHEEL, MOUSE_RIGHT_BUTTON);
+	//g_camera.SetButtonMasks(MOUSE_WHEEL, MOUSE_RIGHT_BUTTON);
 
 	
 

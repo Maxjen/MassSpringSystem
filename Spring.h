@@ -22,6 +22,7 @@ public:
 	~Spring(void);
 
 	void addElasticForces();
+	void addElasticForcesMidPoint();
 	int getPoint1();
 	int getPoint2();
 };
